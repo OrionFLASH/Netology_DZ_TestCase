@@ -1,0 +1,9 @@
+[YANDEX]
+# Токен для Яндекс.Диск API
+# Получить можно по адресу: https://yandex.ru/dev/disk/poligon/
+token = ваш токен
+
+[YANDEX_AUTH]
+# Данные для авторизации на Яндексе
+login = your_yandex_login
+password = your_yandex_password
