@@ -1,7 +1,5 @@
 """
 Домашнее задание по тестированию на Python
-Студент: [Имя студента]
-Группа: [Номер группы]
 """
 
 import os
@@ -209,39 +207,141 @@ class YandexAuth:
             # Переходим на страницу авторизации
             self.driver.get("https://passport.yandex.ru/auth/")
             
-            # Ждем загрузки страницы и находим поле логина
-            wait = WebDriverWait(self.driver, 10)
-            login_field = wait.until(
-                EC.presence_of_element_located((By.ID, "passp-field-login"))
-            )
+            # Ждем загрузки страницы
+            wait = WebDriverWait(self.driver, 15)
+            
+            # Пробуем разные селекторы для поля логина
+            login_field = None
+            login_selectors = [
+                (By.ID, "passp-field-login"),
+                (By.NAME, "login"),
+                (By.CSS_SELECTOR, "input[type='text']"),
+                (By.CSS_SELECTOR, "input[placeholder*='логин']"),
+                (By.CSS_SELECTOR, "input[placeholder*='почта']")
+            ]
+            
+            for selector_type, selector_value in login_selectors:
+                try:
+                    login_field = wait.until(
+                        EC.presence_of_element_located((selector_type, selector_value))
+                    )
+                    break
+                except:
+                    continue
+            
+            if not login_field:
+                print("Не удалось найти поле логина")
+                return False
             
             # Вводим логин
             login_field.clear()
             login_field.send_keys(self.login)
             
-            # Нажимаем кнопку "Войти"
-            login_button = self.driver.find_element(By.ID, "passp:sign-in")
+            # Пробуем найти кнопку входа
+            login_button = None
+            button_selectors = [
+                (By.ID, "passp:sign-in"),
+                (By.CSS_SELECTOR, "button[type='submit']"),
+                (By.CSS_SELECTOR, "input[type='submit']"),
+                (By.XPATH, "//button[contains(text(), 'Войти')]"),
+                (By.XPATH, "//input[@value='Войти']")
+            ]
+            
+            for selector_type, selector_value in button_selectors:
+                try:
+                    login_button = self.driver.find_element(selector_type, selector_value)
+                    break
+                except:
+                    continue
+            
+            if not login_button:
+                print("Не удалось найти кнопку входа")
+                return False
+            
             login_button.click()
             
             # Ждем появления поля пароля
-            password_field = wait.until(
-                EC.presence_of_element_located((By.ID, "passp-field-passwd"))
-            )
+            password_field = None
+            password_selectors = [
+                (By.ID, "passp-field-passwd"),
+                (By.NAME, "passwd"),
+                (By.CSS_SELECTOR, "input[type='password']"),
+                (By.CSS_SELECTOR, "input[placeholder*='пароль']")
+            ]
+            
+            for selector_type, selector_value in password_selectors:
+                try:
+                    password_field = wait.until(
+                        EC.presence_of_element_located((selector_type, selector_value))
+                    )
+                    break
+                except:
+                    continue
+            
+            if not password_field:
+                print("Не удалось найти поле пароля")
+                return False
             
             # Вводим пароль
             password_field.clear()
             password_field.send_keys(self.password)
             
-            # Нажимаем кнопку "Войти"
-            password_button = self.driver.find_element(By.ID, "passp:sign-in")
-            password_button.click()
+            # Нажимаем кнопку "Войти" для пароля
+            password_button = None
+            for selector_type, selector_value in button_selectors:
+                try:
+                    password_button = self.driver.find_element(selector_type, selector_value)
+                    break
+                except:
+                    continue
             
-            # Ждем успешной авторизации (появление элемента профиля)
-            wait.until(
-                EC.presence_of_element_located((By.CLASS_NAME, "user-account"))
-            )
+            if password_button:
+                password_button.click()
             
-            return True
+            # Ждем успешной авторизации или ошибки
+            try:
+                # Проверяем на ошибку авторизации
+                error_selectors = [
+                    (By.CSS_SELECTOR, ".error-message"),
+                    (By.CSS_SELECTOR, "[class*='error']"),
+                    (By.XPATH, "//*[contains(text(), 'неверный')]"),
+                    (By.XPATH, "//*[contains(text(), 'ошибка')]")
+                ]
+                
+                for selector_type, selector_value in error_selectors:
+                    try:
+                        error_element = self.driver.find_element(selector_type, selector_value)
+                        if error_element.is_displayed():
+                            print(f"Ошибка авторизации: {error_element.text}")
+                            return False
+                    except:
+                        continue
+                
+                # Проверяем успешную авторизацию
+                success_selectors = [
+                    (By.CLASS_NAME, "user-account"),
+                    (By.CSS_SELECTOR, "[class*='user']"),
+                    (By.CSS_SELECTOR, "[class*='profile']"),
+                    (By.XPATH, "//*[contains(text(), 'Выйти')]")
+                ]
+                
+                for selector_type, selector_value in success_selectors:
+                    try:
+                        success_element = wait.until(
+                            EC.presence_of_element_located((selector_type, selector_value))
+                        )
+                        if success_element.is_displayed():
+                            return True
+                    except:
+                        continue
+                
+                # Если не нашли ни ошибку, ни успех, считаем неудачей
+                print("Не удалось определить результат авторизации")
+                return False
+                
+            except Exception as e:
+                print(f"Ошибка при проверке результата авторизации: {e}")
+                return False
             
         except Exception as e:
             print(f"Ошибка при авторизации: {e}")
@@ -462,6 +562,12 @@ class TestYandexAuth:
             # Проверяем результат
             assert result == True
             
+        except Exception as e:
+            # Если драйвер не установлен, тест считается пропущенным
+            if "NoSuchDriverException" in str(e) or "WebDriverException" in str(e):
+                pytest.skip("Chrome WebDriver не установлен")
+            else:
+                raise
         finally:
             # Закрываем драйвер
             yandex_auth.close_driver()
@@ -473,6 +579,7 @@ class TestYandexAuth:
         try:
             driver = invalid_auth.setup_driver()
             result = invalid_auth.login_to_yandex()
+            # С неверными данными авторизация должна быть неуспешной
             assert result == False
         except Exception as e:
             # Если драйвер не установлен, тест считается пропущенным
@@ -482,6 +589,28 @@ class TestYandexAuth:
                 raise
         finally:
             invalid_auth.close_driver()
+    
+    def test_yandex_login_page_loads(self):
+        """Тест загрузки страницы авторизации Яндекса"""
+        auth = YandexAuth("test", "test")
+        
+        try:
+            driver = auth.setup_driver()
+            driver.get("https://passport.yandex.ru/auth/")
+            
+            # Проверяем, что страница загрузилась
+            assert ("Яндекс" in driver.title or 
+                   "passport" in driver.title.lower() or 
+                   "авторизация" in driver.title.lower() or
+                   "authorization" in driver.title.lower())
+            
+        except Exception as e:
+            if "NoSuchDriverException" in str(e) or "WebDriverException" in str(e):
+                pytest.skip("Chrome WebDriver не установлен")
+            else:
+                raise
+        finally:
+            auth.close_driver()
 
 
 if __name__ == "__main__":
